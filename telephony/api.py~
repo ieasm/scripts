@@ -1,0 +1,91 @@
+# -*- coding: utf-8 -*-
+from zabbix_api import ZabbixAPI
+import random
+
+def start_session(server="http://192.168.20.165/zabbix", username="Admin", password="zabbix"):
+	zapi = ZabbixAPI(server=server, path="", log_level=6)
+	zapi.login(username, password)
+	return zapi
+
+def get_items(zapi, host_name):
+	items_dict = {}
+	items = zapi.item.get({'filter':{'host':'si2000'}, 'output':['name']})
+	for item in items:
+		items_dict[item['name']] = item['itemid']
+	return items_dict
+
+def create_item(zapi, host_name, app_name, item_name):
+	zagconf = open(r'/usr/local/etc/zabbix_agentd.conf', 'a')
+	interfaces = zapi.host.get({"filter":{"host":host_name}, "selectInterfaces":"refer"})
+	hostid = interfaces[0]['hostid']
+	interfaceid = interfaces[0]['interfaces'].keys()[0]
+	apps = zapi.application.get({'hostids':[hostid], 'output':'extend'})
+	for app in apps:
+		if app['name'] == unicode(app_name, 'utf-8'):
+			appid = app['applicationid']
+	key = host_name + item_name + r'[]'
+	delay = str(random.randrange(3000,4200,60))
+	history = 30
+	zapi.item.create({
+					 'hostid' : hostid,
+					 'key_' : key, 
+					 'name' : item_name, 
+					 'type': "0", 
+					 'value_type': 3, 
+					 'interfaceid':interfaceid, 
+					 'applications':[appid], 
+					 'history':history, 
+					 'delay':delay 
+					 })
+	zagconf.write('UserParameter=%s%s[*], cat /var/zabbix/telephony/%s/%s \n' % (host_name, item_name, host_name, item_name))
+	zagconf.close()
+	trig = zapi.trigger.create({
+								'description':'Low ASR '+ item_name,
+								'expression':'{'+host_name+':'+key+'.last(0)}<10',
+								'priority': 4
+								})
+	trig_id = trig['triggerids'][0]
+	return trig_id
+
+def resolve_names(item, code_data, trunk_data, switch_name):
+	code = item.split('_')[0]
+	operator = item.split('_')[1]
+	name = code + ' ' + code_data[code][0] + ' (' + switch_name + ')'
+	parent_name = code_data[code][1] + ' (' + switch_name + ')'
+	child_name = operator + ' ' + trunk_data[operator] + ' (' + switch_name + ')'
+	return (name, parent_name, child_name)
+
+def add_services(zapi, serv_name, serv_parent, serv_child, trig_id):
+	parent = zapi.service.get({'output':'shorten', 'filter':{'name':serv_parent}})
+	parent_id = parent[0]['serviceid']
+	service = zapi.service.get({'output':'shorten', 'filter':{'name':serv_name}})
+	if not service:
+		service = zapi.service.create({'name':      serv_name,
+                                    'algorithm':    '1',
+                                    'showsla':      '1',
+                                    'goodsla':      '99.7',
+                                    'status':       '0',
+                                    'sortorder':    '0'
+                                    })
+		service_id = service['serviceids'][0]
+		zapi.service.addDependencies({'serviceid':          parent_id, 
+                                    'dependsOnServiceid':   service_id,
+                                    'soft':                 0
+                                    })
+	else:
+		service_id = service[0]['serviceid']
+
+	child = zapi.service.create({	'name':         serv_child,
+                                    'algorithm':    '1',
+                                    'showsla':      '1',
+                                    'goodsla':      '99.7',
+                                    'status':       '0',
+                                    'sortorder':    '0',
+                                    'triggerid':	trig_id
+                                })
+	child_id = child['serviceids'][0]
+	zapi.service.addDependencies({'serviceid':            service_id, 
+                                  'dependsOnServiceid':   child_id,
+                                  'soft':                 0
+                                 })
+

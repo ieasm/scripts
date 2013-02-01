@@ -1,0 +1,29 @@
+# -*- coding: utf-8 -*-
+from ftplib import FTP
+
+def download_log(log_dir):
+	print "connecting to ftp..."
+
+	ftp = FTP('10.1.2.17')
+	msg = ftp.login('atc','naukanet')
+	print msg
+
+	ftp.cwd(log_dir)
+	L = ftp.nlst()
+	L.sort()
+	log_name = L[-2]
+
+	f = open (log_name, 'w')
+
+	print "retrieving latest log..."
+	msg = ftp.retrbinary('RETR '+log_name, open('/var/zabbix/'+log_name, 'wb').write)
+	print log_name, msg
+
+	print "closing connection..."
+	msg = ftp.quit()
+	print msg
+	f.close()
+
+	print '\n'
+
+	return '/var/zabbix' + log_name
