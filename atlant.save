@@ -1,0 +1,16 @@
+#!/usr/bin/expect
+set timeout 10
+spawn ssh 172.16.148.3 -l smena;
+expect "*?";
+send  "yes\n";
+set timeout 15
+expect "*:";
+send  "cvtyf502\n";
+expect "*>";
+send "show bgp neighbor 194.186.66.77\n";
+expect "*>";
+send "exit\n"
+set result $expect_out(0,string)
+set file [open "1.txt" a+];                                                                                                                                                            
+close $file
+
