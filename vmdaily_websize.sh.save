@@ -1,5 +1,0 @@
-#!/bin/bash
-wget http://www.vmdaily.ru/ -O /tmp/vmdaily_index.html
-size=`du /tmp/vmdaily_index.html | awk '{print z ]
-echo $size
-
