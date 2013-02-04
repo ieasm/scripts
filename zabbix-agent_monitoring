@@ -1,0 +1,20 @@
+#!/bin/bash
+##Zabbix-agent availability monitoring
+
+zab_proc=(`ps ax | grep agentd | awk '{print $1}' `)
+num_lines=${#zab_proc[@]}
+
+echo $num_lines
+	if [ $num_lines -lt 2 ]
+		then
+			/usr/bin/php /etc/zabbix/scripts/sms/luxoft_notification.php  "zabbix-agent" "PROBLEM" 79853681779 79175727800
+	touch /tmp/zabbix-agentd.na
+	echo "`date`--- zabbix-agent not available" >> /var/log/zabbix-agent_monitoring.log
+	fi
+
+	if [ -e /tmp/zabbix-agentd.na ]&& [ $num_lines -ge 2 ]
+		then
+		rm /tmp/zabbix-agentd.na
+		/usr/bin/php /etc/zabbix/scripts/sms/luxoft_notification.php  "zabbix-agent" "OK" 79853681779 79175727800
+		echo "`date` --- zabbix-agent available again" >> /var/log/zabbix-agent_monitoring.log
+	fi
